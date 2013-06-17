@@ -1,14 +1,18 @@
 '''
+
+- Added possibility to increment/decrement hex numbers following the 0xFFFF scheme
+
+Original plugin by Razumenko Maksim
+
 Inc-Dec-Value v0.1.7
 
 Increase / Decrease of
-    - numbers (integer and fractional),
-    - dates in ISO format `YYYY-MM-DD` (months from 1 to 12, days from 1 to 31),
-    - hex color values (#fff or #ffffff),
-    - opposite relations or cycled enumerations (`true`->`false`, `Jan`->`Feb`->`Mar`...),
-    on the configured value
-    and a bonus
-    - string actions (UPPER, lower, Capitalize)
+- numbers (integer and fractional),
+- dates in ISO format `YYYY-MM-DD` (months from 1 to 12, days from 1 to 31),
+- hex values 0xFFFFFF etc.,
+- opposite relations or cycled enumerations (`true`->`false`, `Jan`->`Feb`->`Mar`...),
+on the configured value
+and a bonus
 
 Instead of the arrows can use your mouse wheel.
 
@@ -17,13 +21,17 @@ https://github.com/rmaksim/Sublime-Text-2-Inc-Dec-Value
 Copyright (c) 2011 Razumenko Maksim <razumenko.maksim@gmail.com>
 
 Minor contrib by
-    Denis Ryzhkov <denis@ryzhkov.org>
-    Vitaly Pikulik <v.pikulik@gmail.com>
+Denis Ryzhkov <denis@ryzhkov.org>
+Vitaly Pikulik <v.pikulik@gmail.com>
 
 MIT License, see http://opensource.org/licenses/MIT
 '''
 
-import sublime, sublime_plugin, re, string
+import sublime
+import sublime_plugin
+import re
+import string
+
 
 class IncDecValueCommand(sublime_plugin.TextCommand):
 
@@ -38,37 +46,37 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
         for index, region in enumerate(self.view.sel()):
 
             self.region = region
-            self.region_index = index # save the index of the current region to reuse it later on replace
+            self.region_index = index  # save the index of the current region to reuse it later on replace
             self.word_reg = self.view.word(region)
 
             if not self.word_reg.empty():
                 (
-                    self.apply_date()               or
-                    self.apply_hex_color()          or
-                    self.apply_floating_point()     or
-                    self.apply_integer()            or
-                    self.apply_enums()              or
+                    self.apply_date() or
+                    self.apply_avr_hex() or
+                    self.apply_hex_color() or
+                    self.apply_floating_point() or
+                    self.apply_integer() or
+                    self.apply_enums() or
                     self.apply_string()
                 )
-
 
     def load_settings(self):
         """Load settings from file or set defaults
 
-        default settings - see below `defaults`
-        package settings - ${packages}/Inc-Dec-Value/inc_dec_value.sublime-settings
-        user    settings - ${packages}/User/inc_dec_value.sublime-settings
+default settings - see below `defaults`
+package settings - ${packages}/Inc-Dec-Value/inc_dec_value.sublime-settings
+user settings - ${packages}/User/inc_dec_value.sublime-settings
 
-        if the file `inc_dec_value.sublime-settings` does not exist
-        - accept the default settings.
-        """
+if the file `inc_dec_value.sublime-settings` does not exist
+- accept the default settings.
+"""
 
         defaults = {
-            "action_inc_min":    1,
-            "action_dec_min":   -1,
-            "action_inc_max":   10,
-            "action_dec_max":  -10,
-            "action_inc_all":  100,
+            "action_inc_min": 1,
+            "action_dec_min": -1,
+            "action_inc_max": 10,
+            "action_dec_max": -10,
+            "action_inc_all": 100,
             "action_dec_all": -100,
             "enums": [],
             "force_use_upper_case_for_hex_color": False
@@ -79,7 +87,6 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
         for setting in defaults:
             self.settings[setting] = settings.get(setting, defaults.get(setting))
 
-
     def apply_date(self):
         """any date in ISO 8603 format, "YYYY-MM-DD", ex: 2011-12-31"""
 
@@ -87,35 +94,67 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
         re_date = re.compile('([\d]{4}-[\d]{2}-[\d]{2})$')
 
-        if re.match('([\d]{4})$', word): # check year
+        if re.match('([\d]{4})$', word):  # check year
             date = self.get_word(self.word_reg.begin(), self.word_reg.begin() + 10)
 
-            if re_date.match(date): # date is valid -> year
+            if re_date.match(date):  # date is valid -> year
                 # process with apply_integer
                 return False
 
-        elif re.match('([\d]{2})$', word): # check month or day:
+        elif re.match('([\d]{2})$', word):  # check month or day:
             date = self.get_word(self.word_reg.begin() - 5, self.word_reg.begin() + 5)
 
-            if re_date.match(date): # date is valid -> month
+            if re_date.match(date):  # date is valid -> month
                 self.replace(self.cycle(word, 12, self.delta))
 
                 return True
 
-            else: # check day
+            else:  # check day
                 date = self.get_word(self.word_reg.begin() - 8, self.word_reg.begin() + 2)
 
-                if re_date.match(date): # date is valid -> day
+                if re_date.match(date):  # date is valid -> day
                     self.replace(self.cycle(word, 31, self.delta))
 
                     return True
-
 
     def cycle(self, word, max, delta):
         """cycle `word` between 1 and `max` value when adding `delta`"""
 
         return '%02d' % ((int(word) + max - 1 + delta) % max + 1)
 
+    def apply_avr_hex(self):
+        """any hex number 0xFFFFF"""
+        if self.action in ["inc_all", "dec_all"]:
+            return True
+
+        # "inc_min", "dec_min", "inc_max", "dec_max"
+        else:
+            word = self.get_word()
+            re_hex_color = re.compile('[0-9a-fA-F]{1,8}')
+            match = re_hex_color.match(word)
+
+            pos = self.word_reg.begin()
+            sym = self.get_word(pos, pos + 2)
+
+            number = word[2:]
+            if match and sym.lower() == "0x".lower():
+                tmp_reg = self.word_reg
+                # applies for one of hex numbers
+                if self.action in ["inc_min", "dec_min"]:
+                    # take the symbol to the left
+                    # if the cursor between '#' and the number - move it to the right
+                    test = int(number, 16)
+                    result = test + self.delta
+                else:  # self.action in ["inc_max", "dec_max"]
+                    test = int(number, 16)
+                    result = test + self.delta
+
+                new_word = hex(result)
+
+                new_word = new_word.upper()
+                new_word = new_word.replace("X", "x")
+                self.replace(new_word, tmp_reg)
+                return True
 
     def apply_hex_color(self):
         """any hex color, ex: #ee77ee; #f12; #f0e"""
@@ -140,10 +179,10 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
                 if match:
                     hex_str = "#" \
-                            + self.int_to_hex(match.group(1)) \
-                            + self.int_to_hex(match.group(2)) \
-                            + self.int_to_hex(match.group(3)) \
-                            + "; /* alpha: " + match.group(4) +" */"
+                        + self.int_to_hex(match.group(1)) \
+                        + self.int_to_hex(match.group(2)) \
+                        + self.int_to_hex(match.group(3)) \
+                        + "; /* alpha: " + match.group(4) + " */"
 
                     self.view.sel().subtract(sublime.Region(self.region.begin(), self.region.end()))
                     self.view.replace(self.edit, sublime.Region(pos_rgba_beg, pos_rgba_end), hex_str)
@@ -225,7 +264,7 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
                     re_hex = re.compile('([0-9a-fA-F])')
 
-                else: # self.action in ["inc_max", "dec_max"]
+                else:  # self.action in ["inc_max", "dec_max"]
                     re_hex = re_hex_color
 
                 word = self.get_word(tmp_reg)
@@ -244,7 +283,6 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
                     self.replace(new_word, tmp_reg)
 
                     return True
-
 
     def apply_floating_point(self):
         """any number of floating point, ex: 2.3mm or -0.27m"""
@@ -273,7 +311,6 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
                 return True
 
-
     def apply_integer(self):
         """any integer, ex: -12 123px; 123% 1em;"""
 
@@ -292,7 +329,6 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
             self.replace(str(result) + match2, tmp_reg)
 
             return True
-
 
     def apply_enums(self):
         """any value from the list `enums`"""
@@ -338,15 +374,16 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
                 self.replace(fn(new_value))
                 return True
 
-
     def apply_string(self):
-        """any string"""
+        """any string not containing 0x"""
 
         if self.action in ["inc_all", "dec_all"]:
             return
 
+        #check for hex value
         word = self.get_word()
-        # match = re.match('([a-zA-Z1-9_]+)', word)
+        if "0x" in word:
+            return
 
         # if match:
         fn = {
@@ -363,17 +400,15 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
         return True
 
-
-    def prev(self, pos = None):
+    def prev(self, pos=None):
         """@return {string} Previous symbol"""
 
         pos = pos or self.word_reg.begin() - 1
-        sym = self.view.substr(pos) # = self.get_word(pos, pos + 1)
+        sym = self.view.substr(pos)  # = self.get_word(pos, pos + 1)
 
         return {'pos': pos, 'sym': sym}
 
-
-    def next(self, pos = None):
+    def next(self, pos=None):
         """@return {string} Next symbol"""
 
         pos = pos or self.word_reg.begin() + 1
@@ -381,8 +416,7 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
         return {'pos': pos, 'sym': sym}
 
-
-    def replace(self, text, region = None):
+    def replace(self, text, region=None):
         """replace text in an editor on the `text`"""
 
         old_pos = self.view.sel()[self.region_index]
@@ -392,7 +426,6 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
         self.view.replace(self.edit, region, text)
 
-
         # restore the initial position of the cursor
         offset = len(text) - len(self.view.substr(region))
 
@@ -401,22 +434,21 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
         offset_start = old_pos.begin() + offset
         offset_end = old_pos.end() + offset
 
-        if old_pos.begin() == region.begin(): # don't use offset if we're at the start of the initial value
+        if old_pos.begin() == region.begin():  # don't use offset if we're at the start of the initial value
             offset_start = old_pos.begin()
 
-            if old_pos.begin() == old_pos.end(): # don't use offset for ending point if we're not at selection
+            if old_pos.begin() == old_pos.end():  # don't use offset for ending point if we're not at selection
                 offset_end = old_pos.end()
 
         self.view.sel().add(sublime.Region(offset_start, offset_end))
 
-
-    def get_word(self, reg_begin = None, reg_end = None):
+    def get_word(self, reg_begin=None, reg_end=None):
         """get the text from the editor in the region
 
-        - from `reg_begin` to `reg_end` if they are integers
-        - from `reg_begin` = sublime.Region() if `reg_end` is None
-        - from `self.word_reg` if `reg_end` and `reg_begin` is None
-        """
+- from `reg_begin` to `reg_end` if they are integers
+- from `reg_begin` = sublime.Region() if `reg_end` is None
+- from `self.word_reg` if `reg_end` and `reg_begin` is None
+"""
 
         if not reg_begin:
             return self.view.substr(self.word_reg)
@@ -426,8 +458,7 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
 
         return self.view.substr(sublime.Region(reg_begin, reg_end))
 
-
-    def find_right(self, sym, pos = None):
+    def find_right(self, sym, pos=None):
         pos = pos or self.region.begin()
         line = self.view.line(pos)
         end_pos = line.end()
@@ -438,8 +469,7 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
                 return pos
             pos = pos + 1
 
-
-    def find_left(self, sym, pos = None):
+    def find_left(self, sym, pos=None):
         pos = pos or self.region.begin()
         line = self.view.line(pos)
         pos_beg = line.begin()
@@ -450,8 +480,7 @@ class IncDecValueCommand(sublime_plugin.TextCommand):
                 return pos
             pos = pos - 1
 
-
-    def int_to_hex(self, int_str, digits = 2):
+    def int_to_hex(self, int_str, digits=2):
         hex_str = hex(int(int_str))[2:]
         if len(hex_str) < digits:
             hex_str = "0" + hex_str

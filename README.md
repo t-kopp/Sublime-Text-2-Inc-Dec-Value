@@ -1,3 +1,8 @@
+The original plugin by Razumenko Maksim can be found here: Razumenko Maksim
+
+- Added funcionality for hexnumbers following the format 0xFFFF
+
+
 #Inc-Dec-Value
 
 **v0.1.7** - [#19](https://github.com/rmaksim/Sublime-Text-2-Inc-Dec-Value/issues/19) Swapping the color notation in CSS
