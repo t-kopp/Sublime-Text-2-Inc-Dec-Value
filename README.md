@@ -1,4 +1,4 @@
-The original plugin by Razumenko Maksim can be found here: Razumenko Maksim
+The original plugin by Razumenko Maksim can be found here: https://github.com/rmaksim/Sublime-Text-2-Inc-Dec-Value
 
 - Added funcionality for hexnumbers following the format 0xFFFF
 
