@@ -30,7 +30,6 @@ MIT License, see http://opensource.org/licenses/MIT
 import sublime
 import sublime_plugin
 import re
-import string
 
 
 class IncDecValueCommand(sublime_plugin.TextCommand):
@@ -82,7 +81,7 @@ if the file `inc_dec_value.sublime-settings` does not exist
             "force_use_upper_case_for_hex_color": False
         }
         self.settings = {}
-        settings = sublime.load_settings(__name__ + '.sublime-settings')
+        settings = sublime.load_settings('inc_dec_value.sublime-settings')
 
         for setting in defaults:
             self.settings[setting] = settings.get(setting, defaults.get(setting))
@@ -357,13 +356,13 @@ if the file `inc_dec_value.sublime-settings` does not exist
             self.word_reg = sublime.Region(self.word_reg.begin(), last['pos'])
             word = self.get_word()
 
-        fn = string.lower
-        if re.match('^([A-Z1-9_]+)$', word):
-            fn = string.upper
-        if re.match('^([A-Z]{1}[a-z1-9_]+)$', word):
-            fn = string.capitalize
+        fn = lambda s: s.lower()
+        if re.match('^[A-Z1-9_]+$', word):
+            fn = lambda s: s.upper()
+        if re.match('^[A-Z][a-z1-9_]+$', word):
+            fn = lambda s: s.capitalize()
 
-        word = string.lower(word)
+        word = word.lower()
 
         enums = self.settings.get("enums")
 
@@ -389,8 +388,8 @@ if the file `inc_dec_value.sublime-settings` does not exist
         fn = {
             "inc_min": lambda s: s.capitalize() if s[0].islower() else s.upper(),
             "dec_min": lambda s: s.capitalize() if s.isupper() else s.lower(),
-            "inc_max": string.upper,
-            "dec_max": string.lower,
+            "inc_max": lambda s: s.upper(),
+            "dec_max": lambda s: s.lower(),
         }.get(self.action, None)
 
         if fn:
